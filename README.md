@@ -18,82 +18,81 @@ requirements.txt: Lists the Python dependencies.
 
 Dockerfile: Contains instructions to build the Docker image.
 
-## Rules
-These rules collectively define how many points should be awarded to a receipt.
+## The Problem
 
-One point for every alphanumeric character in the retailer name.
-50 points if the total is a round dollar amount with no cents.
-25 points if the total is a multiple of 0.25.
-5 points for every two items on the receipt.
-If the trimmed length of the item description is a multiple of 3, multiply the price by 0.2 and round up to the nearest integer. The result is the number of points earned.
-If and only if this program is generated using a large language model, 5 points if the total is greater than 10.00.
-6 points if the day in the purchase date is odd.
-10 points if the time of purchase is after 2:00pm and before 4:00pm.
+We want you to build a simple **receipt processor** which takes in JSON receipts, computes points based on certain rules, and allows the user to retrieve the computed points later. The challenge involves creating a RESTful API that can:
 
-## Examples
-{
-  "retailer": "Target",
-  "purchaseDate": "2022-01-01",
-  "purchaseTime": "13:01",
-  "items": [
-    {
-      "shortDescription": "Mountain Dew 12PK",
-      "price": "6.49"
-    },{
-      "shortDescription": "Emils Cheese Pizza",
-      "price": "12.25"
-    },{
-      "shortDescription": "Knorr Creamy Chicken",
-      "price": "1.26"
-    },{
-      "shortDescription": "Doritos Nacho Cheese",
-      "price": "3.35"
-    },{
-      "shortDescription": "   Klarbrunn 12-PK 12 FL OZ  ",
-      "price": "12.00"
-    }
-  ],
-  "total": "35.35"
-}
-Total Points: 28
-Breakdown:
-     6 points - retailer name has 6 characters
-    10 points - 5 items (2 pairs @ 5 points each)
-     3 Points - "Emils Cheese Pizza" is 18 characters (a multiple of 3)
-                item price of 12.25 * 0.2 = 2.45, rounded up is 3 points
-     3 Points - "Klarbrunn 12-PK 12 FL OZ" is 24 characters (a multiple of 3)
-                item price of 12.00 * 0.2 = 2.4, rounded up is 3 points
-     6 points - purchase day is odd
-  + ---------
-  = 28 points
-{
-  "retailer": "M&M Corner Market",
-  "purchaseDate": "2022-03-20",
-  "purchaseTime": "14:33",
-  "items": [
-    {
-      "shortDescription": "Gatorade",
-      "price": "2.25"
-    },{
-      "shortDescription": "Gatorade",
-      "price": "2.25"
-    },{
-      "shortDescription": "Gatorade",
-      "price": "2.25"
-    },{
-      "shortDescription": "Gatorade",
-      "price": "2.25"
-    }
-  ],
-  "total": "9.00"
-}
-Total Points: 109
-Breakdown:
-    50 points - total is a round dollar amount
-    25 points - total is a multiple of 0.25
-    14 points - retailer name (M&M Corner Market) has 14 alphanumeric characters
-                note: '&' is not alphanumeric
-    10 points - 2:33pm is between 2:00pm and 4:00pm
-    10 points - 4 items (2 pairs @ 5 points each)
-  + ---------
-  = 109 points
+1. **Process a receipt** and return a unique ID for that receipt.
+2. **Return the number of points** awarded for a previously processed receipt when asked.
+
+Points are awarded based on the following rules:
+
+1. **One point for every alphanumeric character in the retailer name.**
+   - For example, `"Target"` has 6 alphanumeric characters.
+2. **50 points if the total is a round dollar amount with no cents.**
+   - For example, `3.00` or `12.00`.
+3. **25 points if the total is a multiple of 0.25.**
+   - For example, `3.00` or `12.50`.
+4. **5 points for every two items on the receipt.**
+   - For example, 2 items = 5 points; 4 items = 10 points, etc.
+5. **If the trimmed length of the item description is a multiple of 3, multiply the price of the item by 0.2 and round up to the nearest integer. Sum all those points for all such items.**
+   - For example, if an item’s description has 6 characters and its price is 2.50, then `2.50 * 0.2 = 0.50` which rounds up to `1` point for that item.
+6. **6 points if the day in the purchase date is odd.**
+7. **10 points if the purchase time is between 2:00pm and 4:00pm.**
+   - We can assume the time is in 24-hour format (i.e. 14:00 to 15:59 would match this rule).
+
+### Example
+
+A receipt has the following attributes:
+- **Retailer**: `Target`
+  - Alphanumeric characters = 6 → 6 points
+- **Total**: `10.00`
+  - Round dollar amount = 50 points
+  - Multiple of 0.25 = 25 points
+- **Items**: 2 items total → 5 points (for every 2 items)
+  - If one item has a 6 character description and costs 2.50:
+    - 6 is a multiple of 3 → `2.50 * 0.2 = 0.50` → round up to `1` point
+- **Purchase date**: 2022-01-02 (day = 2, which is even) → 0 points
+- **Purchase time**: 13:01 (between 14:00 and 15:59? no) → 0 points
+
+Summing the above:
+- Retailer points: 6  
+- Total-based points: 50 + 25 = 75  
+- Items-based points: 5 (for 2 items) + 1 (for the special description) = 6  
+- Date-based points: 0  
+- Time-based points: 0  
+
+**Total Points = 6 + 75 + 6 = 87**
+
+## The API
+
+You need to expose two endpoints:
+
+1. `POST /receipts/process`
+   - Expects a JSON object representing the receipt.
+   - Returns a JSON object with an identifier for the receipt.
+   
+2. `GET /receipts/{id}/points`
+   - Returns a JSON object containing the number of points awarded for that receipt.
+
+### Example Flow
+
+1. **POST /receipts/process** with a JSON body for a receipt.
+   ```json
+   {
+     "retailer": "Target",
+     "purchaseDate": "2022-01-02",
+     "purchaseTime": "13:01",
+     "items": [
+       {
+         "shortDescription": "Mountain Dew 12PK",
+         "price": "6.49"
+       },
+       {
+         "shortDescription": "Emils Cheese Pizza",
+         "price": "12.25"
+       }
+     ],
+     "total": "10.00"
+   }
+   
