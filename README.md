@@ -4,8 +4,11 @@ The Receipt Processor is a webservice that fulfils the documented API, it is to 
 ## Prerequisites
 Docker: Install Docker to run the application within a container.
 Build the Docker Image:
+
     docker build -t receipt_processor .
+    
 Run the Docker Container:
+
     docker run --rm receipt_processor
 
 ## Project Structure
